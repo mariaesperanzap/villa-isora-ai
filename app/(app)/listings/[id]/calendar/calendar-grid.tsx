@@ -8,6 +8,7 @@ import { cn } from '@/core/lib/cn';
 
 interface DayRow {
   date: string;
+  reservationId: string | null;
   available: boolean;
   dailyPrice: string | null;
   minNights: number | null;
@@ -292,7 +293,11 @@ export function CalendarGrid(props: {
             const day = dayMap.get(cell.date);
             const occupied = resMap.occupied.has(cell.date);
             const checkin = resMap.checkin.get(cell.date);
-            const blocked = day && !day.available;
+            const reserved = occupied || Boolean(day?.reservationId);
+            const manualBlocked = Boolean(day && !day.available && day.source === 'manual');
+            const externalUnavailable = Boolean(
+              day && !day.available && !day.reservationId && day.source !== 'manual',
+            );
             const rec =
               recommendationsOn && !hiddenRecDates.has(cell.date)
                 ? recMap.get(cell.date)
@@ -311,7 +316,13 @@ export function CalendarGrid(props: {
                 key={cell.date}
                 className={cn(
                   'aspect-[7/6] border-r border-b border-white/[0.04] relative',
-                  occupied || blocked ? 'bg-white/[0.03]' : '',
+                  reserved
+                    ? 'bg-amber-500/[0.06]'
+                    : manualBlocked
+                      ? 'bg-red-500/[0.06]'
+                      : externalUnavailable
+                        ? 'bg-sky-500/[0.06]'
+                        : '',
                 )}
               >
                 <button
@@ -322,6 +333,7 @@ export function CalendarGrid(props: {
                     setSelected(
                       day ?? {
                         date: cellDate,
+                        reservationId: null,
                         available: true,
                         dailyPrice: null,
                         minNights: null,
@@ -338,7 +350,13 @@ export function CalendarGrid(props: {
                     <span
                       className={cn(
                         'h-2 w-2 rounded-full mt-1',
-                        blocked ? 'bg-red-400' : occupied ? 'bg-amber-400' : 'bg-emerald-400',
+                        reserved
+                          ? 'bg-amber-400'
+                          : manualBlocked
+                            ? 'bg-red-400'
+                            : externalUnavailable
+                              ? 'bg-sky-400'
+                              : 'bg-emerald-400',
                       )}
                     />
                   </div>
@@ -431,7 +449,10 @@ export function CalendarGrid(props: {
           <span className="inline-block h-2 w-2 rounded-full bg-amber-400 mr-1.5" /> reserved
         </span>
         <span>
-          <span className="inline-block h-2 w-2 rounded-full bg-red-400 mr-1.5" /> blocked
+          <span className="inline-block h-2 w-2 rounded-full bg-red-400 mr-1.5" /> manual block
+        </span>
+        <span>
+          <span className="inline-block h-2 w-2 rounded-full bg-sky-400 mr-1.5" /> external unavailable
         </span>
         {recommendationsOn ? (
           <span>

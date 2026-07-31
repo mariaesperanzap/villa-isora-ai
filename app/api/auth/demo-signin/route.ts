@@ -26,6 +26,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/core/db';
 import { sessions, users, workspaces } from '@/core/db/schema';
 import { encryptApiKey } from '@/core/lib/crypto';
+import { isOfflineMode } from '@/core/lib/offline';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -48,7 +49,7 @@ export async function POST(req: Request): Promise<Response> {
 
   // Best-effort: refresh the demo workspace's API key from env on every signin so
   // a real key wired into Vercel env propagates without re-running the seed.
-  const demoKey = process.env.DEMO_REPULL_API_KEY?.trim();
+  const demoKey = isOfflineMode() ? undefined : process.env.DEMO_REPULL_API_KEY?.trim();
   if (demoKey) {
     const wsRow = (
       await db.select().from(workspaces).where(eq(workspaces.ownerUserId, user.id)).limit(1)

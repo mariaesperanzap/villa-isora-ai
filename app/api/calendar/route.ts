@@ -22,6 +22,7 @@ import { calendarDays, listings, workspaces } from '@/core/db/schema';
 import { getSessionWorkspace } from '@/core/lib/session';
 import { getRepullForWorkspace } from '@/core/services/repull-client';
 import { pushCalendarOverride } from '@/core/services/calendar-push';
+import { isOfflineMode } from '@/core/lib/offline';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -95,7 +96,7 @@ export async function POST(req: NextRequest) {
     .where(eq(workspaces.id, ctx.workspace.id))
     .limit(1);
   const workspace = wsRows[0]!;
-  const shouldPush = body.push ?? workspace.autoPushCalendar;
+  const shouldPush = !isOfflineMode() && (body.push ?? workspace.autoPushCalendar);
 
   // Try to push first so we know whether to mark the row as synced. If the
   // push fails we still save locally — the host can retry from the UI.

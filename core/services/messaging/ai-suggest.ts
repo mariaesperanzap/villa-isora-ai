@@ -17,6 +17,7 @@ import {
   messages,
   reservations,
 } from '@/core/db/schema';
+import { isOfflineMode } from '@/core/lib/offline';
 
 export interface SuggestionResult {
   suggestions: string[];
@@ -36,7 +37,9 @@ export async function suggestReplies(opts: {
   if (!ctx) return { suggestions: [], provider: 'stub' };
 
   const provider =
-    process.env.VANIO_AI_API_KEY
+    isOfflineMode()
+      ? 'stub'
+      : process.env.VANIO_AI_API_KEY
       ? 'vanio'
       : process.env.OPENAI_API_KEY
         ? 'openai'
