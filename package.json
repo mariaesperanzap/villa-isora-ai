@@ -10,6 +10,8 @@
     "build": "next build",
     "start": "next start -p 3030",
     "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/direct-booking-policy.test.ts",
+    "test:integration": "tsx --test tests/direct-bookings.integration.test.ts",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",

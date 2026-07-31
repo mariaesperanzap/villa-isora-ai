@@ -1,9 +1,10 @@
 import { notFound } from 'next/navigation';
-import { and, between, eq } from 'drizzle-orm';
+import { and, between, eq, gt, isNull, lte, ne, or } from 'drizzle-orm';
 import { db } from '@/core/db';
 import { calendarDays, listings, reservations } from '@/core/db/schema';
 import { requireSessionWorkspace } from '@/core/lib/session';
 import { fetchListingPricing } from '@/core/services/atlas-pricing';
+import { isOfflineMode } from '@/core/lib/offline';
 import { CalendarGrid } from './calendar-grid';
 
 export const dynamic = 'force-dynamic';
@@ -54,7 +55,9 @@ export default async function CalendarPage({
       and(
         eq(reservations.workspaceId, ctx.workspace.id),
         eq(reservations.listingId, id),
-        between(reservations.checkIn, startStr, endStr),
+        lte(reservations.checkIn, endStr),
+        gt(reservations.checkOut, startStr),
+        or(isNull(reservations.status), ne(reservations.status, 'cancelled')),
       ),
     );
 
@@ -71,7 +74,7 @@ export default async function CalendarPage({
     factors: Record<string, unknown> | null;
     status: string;
   }> = [];
-  if (ctx.workspace.atlasRecommendationsEnabled && listing.repullPropertyId) {
+  if (!isOfflineMode() && ctx.workspace.atlasRecommendationsEnabled && listing.repullPropertyId) {
     try {
       const recs = await fetchListingPricing({
         workspaceId: ctx.workspace.id,
@@ -110,6 +113,7 @@ export default async function CalendarPage({
       atlasRecommendationsEnabled={ctx.workspace.atlasRecommendationsEnabled}
       days={days.map((d) => ({
         date: d.date,
+        reservationId: d.reservationId,
         available: d.available,
         dailyPrice: d.dailyPrice,
         minNights: d.minNights,

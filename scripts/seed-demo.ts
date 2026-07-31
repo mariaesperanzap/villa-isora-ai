@@ -1,6 +1,5 @@
 /**
- * Demo seeder for the public hosted preview at
- * https://repull-channel-manager.vercel.app.
+ * Local-only demo seeder for Villa Isora.
  *
  *   pnpm tsx scripts/seed-demo.ts
  *
@@ -10,20 +9,14 @@
  *
  * What gets seeded
  *   - Demo user            demo@repull.dev
- *   - Demo workspace       slug `demo`, with a fake Airbnb connection
- *   - 50 plausible vacation-rental listings (Fernie BC / Whistler / Banff)
- *   - 200 reservations across the past 60 / next 90 days
- *   - 60-day calendar grid per listing (with bookings + 5% manual blocks)
- *   - 5 sync runs (most recent: success, listings=50, reservations=200)
+ *   - Demo workspace       slug `demo`, with a local direct connection
+ *   - One synthetic property named Villa Isora
+ *   - Synthetic reservations across the past 60 / next 90 days
+ *   - 60-day calendar grid with manual blocks
+ *   - 5 synthetic sync runs
  *
- * SAFETY — DEMO_REPULL_API_KEY:
- *   If you set DEMO_REPULL_API_KEY to enable live syncs from this workspace,
- *   it MUST be customer 1's key (Ivan's own FantasticStay account). NEVER
- *   use a real paying customer's key (e.g. customer 10 = Beyondbnb,
- *   customer 24 = Stayin, etc.) — this preview is publicly accessible and
- *   would leak real guest/reservation data. The default placeholder
- *   (`demo-stub-no-real-sync`) is intentional: the seeded data is fully
- *   synthetic so live syncs aren't required.
+ * SAFETY: external API credentials are cleared and outbound automation is
+ * disabled. All generated data is synthetic.
  */
 
 import { eq, inArray, sql } from 'drizzle-orm';
@@ -208,18 +201,7 @@ function isoDate(offsetDays: number): string {
 async function main() {
   console.log('Seeding demo workspace …');
 
-  if (!process.env.DEMO_REPULL_API_KEY) {
-    console.warn(
-      '  warn: DEMO_REPULL_API_KEY not set — workspace will get a placeholder key. Real Repull syncs will 401.',
-    );
-  } else {
-    console.log('  info: using DEMO_REPULL_API_KEY from env');
-    // SAFETY: Never seed the public demo with a real paying customer's API key.
-    // Use customer 1 (Ivan's own FantasticStay account) — never customer 10
-    // (Beyondbnb), customer 24 (Stayin), or any other live tenant. Past agents
-    // wrongly used customer 10's key here, exposing real listings/reservations
-    // via the public hosted preview.
-  }
+  console.log('  offline: external credentials cleared; synthetic data only');
 
   // 1) User
   let user = (await db.select().from(users).where(eq(users.email, DEMO_EMAIL)).limit(1))[0];
@@ -235,14 +217,16 @@ async function main() {
       await db
         .insert(workspaces)
         .values({
-          name: 'Demo Mountain Rentals',
+          name: 'Villa Isora Demo',
           slug: DEMO_SLUG,
           ownerUserId: user.id,
           // Stub key just so the "missing API key" warning doesn't show in
           // the demo. Real syncs against api.repull.dev will fail (which is
           // fine — the data is pre-seeded).
-          repullApiKey: process.env.DEMO_REPULL_API_KEY?.trim() || 'demo-stub-no-real-sync',
+          repullApiKey: null,
           repullApiKeyEncrypted: false,
+          autoPushCalendar: false,
+          atlasRecommendationsEnabled: false,
         })
         .returning()
     )[0]!;
@@ -250,10 +234,12 @@ async function main() {
     await db
       .update(workspaces)
       .set({
-        name: 'Demo Mountain Rentals',
+        name: 'Villa Isora Demo',
         ownerUserId: user.id,
-        repullApiKey: process.env.DEMO_REPULL_API_KEY?.trim() || 'demo-stub-no-real-sync',
+        repullApiKey: null,
         repullApiKeyEncrypted: false,
+        autoPushCalendar: false,
+        atlasRecommendationsEnabled: false,
       })
       .where(eq(workspaces.id, ws.id));
   }
@@ -278,70 +264,56 @@ async function main() {
   await db.delete(syncRuns).where(eq(syncRuns.workspaceId, ws.id));
   await db.delete(connections).where(eq(connections.workspaceId, ws.id));
 
-  // 4) Connection (a fake Airbnb host)
+  // 4) Local-only demo connection.
   const conn = (
     await db
       .insert(connections)
       .values({
         workspaceId: ws.id,
-        provider: 'airbnb',
-        repullConnectionId: 'demo-conn-1',
-        externalAccountId: 'demo-host-airbnb',
+        provider: 'direct',
+        repullConnectionId: null,
+        externalAccountId: 'villa-isora-demo',
         status: 'active',
         hostMetadata: {
-          hostName: 'Demo Mountain Rentals',
-          avatarUrl: PHOTOS[0],
-          listingsCount: 50,
+          hostName: 'Villa Isora Demo',
+          avatarUrl: null,
+          listingsCount: 1,
         },
         lastSyncedAt: new Date(),
       })
       .returning()
   )[0]!;
-  console.log(`  conn      ${conn.id}  airbnb / demo-host-airbnb`);
+  console.log(`  conn      ${conn.id}  direct / villa-isora-demo`);
 
-  // 5) 50 listings
+  // 5) Exactly one synthetic property for Sprint 1.1.
   const created: Array<{ id: string; externalListingId: string; name: string; currency: string }> =
     [];
-  for (let i = 0; i < 50; i++) {
-    const loc = pick(CITIES);
-    const beds = between(1, 5);
-    const baths = between(1, Math.max(2, beds));
-    const maxGuests = beds * 2;
-    const name = `${pick(NAME_PREFIX)} ${pick(NAME_SUFFIX)} ${i + 1}`;
-    const photoCount = between(2, 5);
-    const photos = Array.from({ length: photoCount }, () => pick(PHOTOS));
-    const externalListingId = `demo-airbnb-${10000 + i}`;
-
-    const row = (
-      await db
-        .insert(listings)
-        .values({
-          workspaceId: ws.id,
-          connectionId: conn.id,
-          externalListingId,
-          repullPropertyId: `demo-prop-${20000 + i}`,
-          name,
-          address: `${between(100, 9999)} ${pick(STREETS)}`,
-          city: loc.city,
-          country: loc.country,
-          photos,
-          maxGuests,
-          bedrooms: beds,
-          bathrooms: String(baths),
-          currency: 'CAD',
-          timezone: loc.tz,
-          raw: { state: loc.state, source: 'demo-seed' },
-          syncedAt: new Date(),
-        })
-        .returning()
-    )[0]!;
-    created.push({
-      id: row.id,
-      externalListingId,
-      name,
-      currency: 'CAD',
-    });
-  }
+  const externalListingId = 'villa-isora-demo';
+  const name = 'Villa Isora';
+  const row = (
+    await db
+      .insert(listings)
+      .values({
+        workspaceId: ws.id,
+        connectionId: conn.id,
+        externalListingId,
+        repullPropertyId: null,
+        name,
+        address: 'Dirección ficticia 1',
+        city: 'Localidad de prueba',
+        country: 'ES',
+        photos: [],
+        maxGuests: 8,
+        bedrooms: 4,
+        bathrooms: '3',
+        currency: 'EUR',
+        timezone: 'Europe/Madrid',
+        raw: { source: 'demo-seed', synthetic: true },
+        syncedAt: new Date(),
+      })
+      .returning()
+  )[0]!;
+  created.push({ id: row.id, externalListingId, name, currency: 'EUR' });
   console.log(`  listings  ${created.length}`);
 
   // 6) 200 reservations + a guest per reservation, then calendar
@@ -426,22 +398,12 @@ async function main() {
   //    multiple minutes; batching keeps it sub-second per listing.
   let calCount = 0;
   for (const l of created) {
-    const booked = reservationsByListing.get(l.id) ?? [];
-    const bookedDays = new Set<string>();
-    for (const r of booked) {
-      const start = new Date(r.checkIn);
-      const end = new Date(r.checkOut);
-      for (let d = new Date(start); d < end; d.setUTCDate(d.getUTCDate() + 1)) {
-        bookedDays.add(d.toISOString().slice(0, 10));
-      }
-    }
-
     const batch: Array<typeof calendarDays.$inferInsert> = [];
     for (let i = 0; i < 60; i++) {
       const date = isoDate(i);
-      const isBooked = bookedDays.has(date);
-      // 5% manual blocks
-      const isManualBlock = !isBooked && rand() < 0.05;
+      // Reservation occupancy is rendered from reservations. calendar_days is
+      // only a transitional projection/configuration surface.
+      const isManualBlock = rand() < 0.05;
       const dayOfWeek = new Date(date).getUTCDay();
       const isWeekend = dayOfWeek === 5 || dayOfWeek === 6;
       const baseNightly = between(160, 380);
@@ -450,8 +412,8 @@ async function main() {
         workspaceId: ws.id,
         listingId: l.id,
         date,
-        available: !isBooked && !isManualBlock,
-        blockedReason: isBooked ? 'booked' : isManualBlock ? 'maintenance' : null,
+        available: !isManualBlock,
+        blockedReason: isManualBlock ? 'maintenance' : null,
         dailyPrice: String(price),
         minNights: 2,
         source: isManualBlock ? 'manual' : 'sync',
@@ -702,7 +664,7 @@ async function main() {
       finishedAt,
       status: 'success',
       stats: {
-        listings: 50,
+        listings: 1,
         reservations: i === 0 ? resCount : between(0, 4),
         guests: i === 0 ? guestCount : between(0, 4),
         calendarDays: i === 0 ? calCount : 0,
@@ -712,8 +674,7 @@ async function main() {
   }
   console.log(`  sync_runs 5`);
 
-  console.log(`\nDone. Sign in to https://repull-channel-manager.vercel.app via the`);
-  console.log(`"Sign in as demo" button to view this workspace.`);
+  console.log('\nDone. Start the app locally and use "Sign in as demo".');
 
   process.exit(0);
 }

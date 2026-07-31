@@ -3,6 +3,7 @@ import { and, desc, eq, SQL } from 'drizzle-orm';
 import { db } from '@/core/db';
 import { listings, reservations } from '@/core/db/schema';
 import { requireSessionWorkspace } from '@/core/lib/session';
+import { DirectBookingForm } from './direct-booking-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +35,19 @@ export default async function ReservationsPage({
     .limit(PAGE_SIZE)
     .offset(offset);
 
+  const property = (
+    await db
+      .select({
+        id: listings.id,
+        name: listings.name,
+        currency: listings.currency,
+        maxGuests: listings.maxGuests,
+      })
+      .from(listings)
+      .where(eq(listings.workspaceId, ctx.workspace.id))
+      .limit(1)
+  )[0];
+
   return (
     <div className="space-y-4 max-w-6xl">
       <div className="flex items-center justify-between">
@@ -49,6 +63,15 @@ export default async function ReservationsPage({
         status={sp.status}
         platform={sp.platform}
       />
+
+      {property ? (
+        <DirectBookingForm
+          listingId={property.id}
+          listingName={property.name ?? 'Villa Isora'}
+          currency={property.currency ?? 'EUR'}
+          maxGuests={property.maxGuests ?? 1}
+        />
+      ) : null}
 
       <div className="card overflow-hidden">
         <table className="w-full text-sm">

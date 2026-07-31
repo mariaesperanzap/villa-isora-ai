@@ -10,10 +10,12 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/core/db';
 import { workspaces } from '@/core/db/schema';
 import { decryptApiKey } from '@/core/lib/crypto';
+import { assertExternalAccessAllowed } from '@/core/lib/offline';
 
 const BASE_URL = process.env.REPULL_API_BASE_URL ?? 'https://api.repull.dev';
 
 export async function getRepullForWorkspace(workspaceId: string): Promise<Repull> {
+  assertExternalAccessAllowed('Repull API');
   const rows = await db.select().from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
   const ws = rows[0];
   if (!ws?.repullApiKey) {
@@ -27,5 +29,6 @@ export async function getRepullForWorkspace(workspaceId: string): Promise<Repull
 
 /** For ad-hoc usage (e.g. health check from a dev script) without storing the key. */
 export function getRepullWithKey(apiKey: string): Repull {
+  assertExternalAccessAllowed('Repull API');
   return new Repull({ apiKey, baseUrl: BASE_URL });
 }

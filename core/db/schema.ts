@@ -12,6 +12,7 @@ import { relations, sql } from 'drizzle-orm';
 import {
   boolean,
   date,
+  index,
   integer,
   jsonb,
   numeric,
@@ -273,6 +274,13 @@ export const calendarDays = pgTable(
     listingId: uuid('listing_id')
       .notNull()
       .references(() => listings.id, { onDelete: 'cascade' }),
+    /**
+     * Transitional link for reservation occupancy rows. Reservations remain
+     * canonical; this projection can be replaced when a reservation changes.
+     */
+    reservationId: uuid('reservation_id').references(() => reservations.id, {
+      onDelete: 'cascade',
+    }),
     date: date('date').notNull(),
     available: boolean('available').notNull().default(true),
     blockedReason: text('blocked_reason'),
@@ -288,6 +296,7 @@ export const calendarDays = pgTable(
   },
   (t) => ({
     uq: uniqueIndex('calendar_days_listing_date_uq').on(t.listingId, t.date),
+    reservationIdx: index('calendar_days_reservation_id_idx').on(t.reservationId),
   }),
 );
 
@@ -357,6 +366,10 @@ export const reservationsRelations = relations(reservations, ({ one }) => ({
 export const calendarDaysRelations = relations(calendarDays, ({ one }) => ({
   workspace: one(workspaces, { fields: [calendarDays.workspaceId], references: [workspaces.id] }),
   listing: one(listings, { fields: [calendarDays.listingId], references: [listings.id] }),
+  reservation: one(reservations, {
+    fields: [calendarDays.reservationId],
+    references: [reservations.id],
+  }),
 }));
 
 // ============================================================================
