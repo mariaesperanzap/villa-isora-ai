@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "villa-isora-calendar",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-22",
+  "workers_dev": true,
+  "routes": [
+    {
+      "pattern": "villa-isora.com/calendario/villa-isora.ics",
+      "zone_name": "villa-isora.com"
+    }
+  ]
+}
