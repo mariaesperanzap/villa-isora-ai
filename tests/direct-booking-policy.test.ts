@@ -4,6 +4,7 @@ import {
   occupiedDatesForStay,
   rangesOverlap,
   validateDirectBookingInput,
+  paymentScheduleForStay,
   type DirectBookingInput,
 } from '../core/services/direct-booking-policy';
 
@@ -50,4 +51,20 @@ test('detects partial, contained, and containing overlaps', () => {
   assert.equal(rangesOverlap('2026-08-11', '2026-08-12', '2026-08-10', '2026-08-13'), true);
   assert.equal(rangesOverlap('2026-08-09', '2026-08-14', '2026-08-10', '2026-08-13'), true);
   assert.equal(rangesOverlap('2026-08-07', '2026-08-10', '2026-08-10', '2026-08-13'), false);
+});
+
+test('sets 50% deposit five days before arrival and balance on arrival', () => {
+  assert.deepEqual(paymentScheduleForStay('2026-12-20', '2026-12-01'), {
+    depositPercent: 50,
+    depositDueOn: '2026-12-15',
+    balanceDueOn: '2026-12-20',
+  });
+});
+
+test('makes the 50% deposit immediately due for a late booking', () => {
+  assert.deepEqual(paymentScheduleForStay('2026-12-20', '2026-12-18'), {
+    depositPercent: 50,
+    depositDueOn: '2026-12-18',
+    balanceDueOn: '2026-12-20',
+  });
 });

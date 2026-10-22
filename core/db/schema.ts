@@ -249,6 +249,13 @@ export const reservations = pgTable(
     guestCount: integer('guest_count'),
     totalPrice: numeric('total_price', { precision: 12, scale: 2 }),
     currency: varchar('currency', { length: 8 }),
+    /** Direct-booking payment schedule: 50% five days before arrival, balance on arrival. */
+    paymentStatus: varchar('payment_status', { length: 24 }),
+    depositPercent: numeric('deposit_percent', { precision: 5, scale: 2 }),
+    depositDueOn: date('deposit_due_on'),
+    depositPaidAt: timestamp('deposit_paid_at', { withTimezone: true }),
+    balanceDueOn: date('balance_due_on'),
+    balancePaidAt: timestamp('balance_paid_at', { withTimezone: true }),
     /** Snapshot of the guest fields (denormalised for list/table rendering). */
     guestDetails: jsonb('guest_details').$type<Record<string, unknown>>(),
     raw: jsonb('raw').$type<Record<string, unknown>>(),
@@ -297,6 +304,51 @@ export const calendarDays = pgTable(
   (t) => ({
     uq: uniqueIndex('calendar_days_listing_date_uq').on(t.listingId, t.date),
     reservationIdx: index('calendar_days_reservation_id_idx').on(t.reservationId),
+  }),
+);
+
+// ============================================================================
+// Generic read-only iCal channel feeds
+// ============================================================================
+
+export const icalFeeds = pgTable(
+  'ical_feeds',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+    listingId: uuid('listing_id').notNull().references(() => listings.id, { onDelete: 'cascade' }),
+    provider: varchar('provider', { length: 32 }).notNull(),
+    status: varchar('status', { length: 24 }).notNull().default('configured'),
+    lastAttemptAt: timestamp('last_attempt_at', { withTimezone: true }),
+    lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
+    lastEventCount: integer('last_event_count'),
+    errorCode: varchar('error_code', { length: 64 }),
+    etag: text('etag'),
+    lastModified: text('last_modified'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ uq: uniqueIndex('ical_feeds_listing_provider_uq').on(t.listingId, t.provider) }),
+);
+
+export const icalEvents = pgTable(
+  'ical_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    feedId: uuid('feed_id').notNull().references(() => icalFeeds.id, { onDelete: 'cascade' }),
+    workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+    listingId: uuid('listing_id').notNull().references(() => listings.id, { onDelete: 'cascade' }),
+    uidHash: varchar('uid_hash', { length: 64 }).notNull(),
+    checkIn: date('check_in').notNull(),
+    checkOut: date('check_out').notNull(),
+    status: varchar('status', { length: 16 }).notNull().default('active'),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    uq: uniqueIndex('ical_events_feed_uid_uq').on(t.feedId, t.uidHash),
+    listingDatesIdx: index('ical_events_listing_dates_idx').on(t.listingId, t.status, t.checkIn, t.checkOut),
   }),
 );
 
@@ -396,3 +448,5 @@ export type NewReservation = typeof reservations.$inferInsert;
 export type CalendarDay = typeof calendarDays.$inferSelect;
 export type NewCalendarDay = typeof calendarDays.$inferInsert;
 export type SyncRun = typeof syncRuns.$inferSelect;
+export type IcalFeed = typeof icalFeeds.$inferSelect;
+export type IcalEvent = typeof icalEvents.$inferSelect;

@@ -17,6 +17,15 @@ export interface DirectBookingResult {
   checkOut: string;
   nights: number;
   currency: string;
+  depositPercent: number;
+  depositDueOn: string;
+  balanceDueOn: string;
+}
+
+export interface DirectBookingPaymentSchedule {
+  depositPercent: 50;
+  depositDueOn: string;
+  balanceDueOn: string;
 }
 
 export class DirectBookingValidationError extends Error {
@@ -85,6 +94,23 @@ export function occupiedDatesForStay(checkIn: string, checkOut: string): string[
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
   return dates;
+}
+
+export function paymentScheduleForStay(
+  checkIn: string,
+  today = new Date().toISOString().slice(0, 10),
+): DirectBookingPaymentSchedule {
+  if (!isIsoDate(checkIn) || !isIsoDate(today)) {
+    throw new DirectBookingValidationError('A valid arrival date is required.');
+  }
+  const due = new Date(`${checkIn}T00:00:00.000Z`);
+  due.setUTCDate(due.getUTCDate() - 5);
+  const calculatedDue = due.toISOString().slice(0, 10);
+  return {
+    depositPercent: 50,
+    depositDueOn: calculatedDue < today ? today : calculatedDue,
+    balanceDueOn: checkIn,
+  };
 }
 
 function isIsoDate(value: string): boolean {

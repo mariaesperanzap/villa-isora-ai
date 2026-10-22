@@ -6,6 +6,7 @@ import {
   DirectBookingConflictError,
   DirectBookingNotFoundError,
   occupiedDatesForStay,
+  paymentScheduleForStay,
   validateDirectBookingInput,
   type DirectBookingInput,
   type DirectBookingResult,
@@ -100,6 +101,7 @@ export async function createDirectBookingForWorkspace(
     const nameParts = input.guestName.trim().split(/\s+/);
     const firstName = nameParts.shift()!;
     const lastName = nameParts.join(' ');
+    const paymentSchedule = paymentScheduleForStay(input.checkIn);
     const reservation = (
       await tx
         .insert(reservations)
@@ -117,6 +119,10 @@ export async function createDirectBookingForWorkspace(
           guestCount: input.guestCount,
           totalPrice: input.totalPrice != null ? String(input.totalPrice) : null,
           currency: listing.currency,
+          paymentStatus: 'deposit_pending',
+          depositPercent: String(paymentSchedule.depositPercent),
+          depositDueOn: paymentSchedule.depositDueOn,
+          balanceDueOn: paymentSchedule.balanceDueOn,
           guestDetails: {
             firstName,
             lastName,
@@ -146,6 +152,7 @@ export async function createDirectBookingForWorkspace(
       checkOut: input.checkOut,
       nights: occupiedDates.length,
       currency: listing.currency ?? '',
+      ...paymentSchedule,
     };
   });
 }
